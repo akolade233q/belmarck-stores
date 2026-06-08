@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Belmarck Store</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Security check: Force user to log in before reading page layouts
+    if (localStorage.getItem("belmarck_logged_in") !== "true") {
+      window.location.href = "login.html";
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Belmarck Store</h1>
+    <nav>
+      <a href="#" onclick="logoutUser()" style="color:#ffcc00; margin-right:15px;">Logout</a>
+      <a href="cart.html" class="view-cart-link">🛒 View Cart (<span id="global-cart-count">0</span>)</a>
+    </nav>
+  </header>
+  <div class="hero"></div>
+  <section class="products">
+    <h2>Trending Products</h2>
+    <div class="product-grid" id="product-display-grid"></div>
+  </section>
+  <footer><p>© 2026 Belmarck Store | All Rights Reserved</p></footer>
+  <script>
+    let cartItems = {};
+    let globalProducts = []; // Stores local copy of live stock numbers
+
+    window.onload = function() { loadCart(); fetchProducts(); };
+
+    function fetchProducts() {
+      fetch('/api/products').then(res => res.json()).then(products => {
+        globalProducts = products;
+        const grid = document.getElementById("product-display-grid");
+        grid.innerHTML = "";
+        products.forEach(product => {
+          const card = document.createElement("div");
+          card.className = "product-card";
+          let btnHTML = `<button class="order-btn" onclick="addToCart('${product.name}', ${product.price}, '${product.img}')">Order</button>`;
+          let imgStyle = "";
+          let stockHTML = `<p style="font-size: 13px; color: #27ae60; font-weight: bold; margin-bottom: 5px;">🔥 Only ${product.stock} remaining</p>`;
+          
+          if (product.stock <= 0) {
+            imgStyle = "style='opacity: 0.4;'";
+            stockHTML = `<p style="font-size: 13px; color: #c0392b; font-weight: bold; margin-bottom: 5px;">❌ Out of Stock</p>`;
+            btnHTML = `<button class="order-btn" style="background: #95a5a6; cursor: not-allowed;" disabled>Out of Stock</button>`;
+          } else if (product.stock <= 2) {
+            stockHTML = `<p style="font-size: 13px; color: #d35400; font-weight: bold; margin-bottom: 5px;">⚠️ Running low: ${product.stock} left!</p>`;
+          }
+          
+          card.innerHTML = `
+            <img src="${product.img}" alt="${product.name}" ${imgStyle}>
+            <div class="product-info">
+              <h3>${product.name}</h3>
+              ${stockHTML}
+              <p class="price">₦${product.price.toLocaleString()}</p>
+              ${btnHTML}
+            </div>`;
+          grid.appendChild(card);
+        });
+      });
+    }
+
+    function addToCart(name, price, img) {
+      // Find matching item array definition profile
+      const targetProduct = globalProducts.find(p => p.name === name);
+      const currentQtyInCart = cartItems[name] ? cartItems[name].qty : 0;
+
+      // GUARD: Restrict card selections from violating inventory ceiling levels
+      if (currentQtyInCart >= targetProduct.stock) {
+        alert(`Sorry, you cannot buy more than ${targetProduct.stock} items of ${name}. That is our total remaining stock!`);
+        return;
+      }
+
+      if (cartItems[name]) { cartItems[name].qty += 1; } 
+      else { cartItems[name] = { price: price, qty: 1, img: img }; }
+      localStorage.setItem("belmarck_cart", JSON.stringify(cartItems));
+      updateCount();
+      alert(name + " added!");
+    }
+
+    function loadCart() {
+      const saved = localStorage.getItem("belmarck_cart");
+      if (saved) { try { cartItems = JSON.parse(saved); } catch(e) { cartItems = {}; } }
+      updateCount();
+    }
+
+    function updateCount() {
+      let count = 0;
+      Object.keys(cartItems).forEach(k => count += cartItems[k].qty);
+      document.getElementById("global-cart-count").innerText = count;
+    }
+
+    function logoutUser() {
+      localStorage.removeItem("belmarck_logged_in");
+      window.location.href = "login.html";
+    }
+  </script>
+</body>
+</html>

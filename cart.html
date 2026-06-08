@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Your Shopping Cart</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    if (localStorage.getItem("belmarck_logged_in") !== "true") {
+      window.location.href = "login.html";
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Belmarck Store - Cart</h1>
+    <nav><a href="index.html">← Back to Shop</a></nav>
+  </header>
+  <div class="cart-page-container">
+    <h2>Review Your Order Items</h2>
+    <div id="cart-page-list"></div>
+    <div class="cart-page-total"><h3>Total: ₦<span id="cart-page-grand-total">0</span></h3></div>
+    <div id="payout-panel" style="display: none;">
+      <div id="payment-instructions-static">
+        <h3>Payment Details</h3>
+        <p>MoniePoint – 8034987945 | Belmarck Multisystem Ventures / Aina Oluwayemisi</p>
+      </div>
+      <div class="delivery-form">
+        <div class="form-group"><label>Full Name</label><input type="text" id="customer-name"></div>
+        <div class="form-group"><label>Phone Number</label><input type="tel" id="customer-phone"></div>
+        <div class="form-group"><label>Address</label><textarea id="customer-address" rows="3"></textarea></div>
+        <button class="payout-btn" onclick="executePayout()">Payout</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    let cartItems = {};
+    let globalProducts = [];
+
+    window.onload = function() {
+      // First download the fresh stock quantities from server database records
+      fetch('/api/products').then(res => res.json()).then(products => {
+        globalProducts = products;
+        loadCart();
+      });
+    };
+
+    function loadCart() {
+      const saved = localStorage.getItem("belmarck_cart");
+      if (saved) { try { cartItems = JSON.parse(saved); } catch(e) { cartItems = {}; } }
+      renderCart();
+    }
+
+    function renderCart() {
+      const container = document.getElementById("cart-page-list");
+      const panel = document.getElementById("payout-panel");
+      container.innerHTML = "";
+      let grandTotal = 0;
+      const keys = Object.keys(cartItems);
+      if (keys.length === 0) {
+        container.innerHTML = '<p class="empty-msg">Your shopping cart is empty.</p>';
+        panel.style.display = "none";
+        document.getElementById("cart-page-grand-total").innerText = "0";
+        return;
+      }
+      panel.style.display = "block";
+      keys.forEach(name => {
+        const item = cartItems[name];
+        grandTotal += (item.price * item.qty);
+        const row = document.createElement("div");
+        row.className = "cart-page-item-row";
+        row.innerHTML = `
+          <div class="item-meta-left">
+            <img src="${item.img}" class="cart-page-img">
+            <div><h4>${name}</h4><p class="cart-row-price">₦${item.price.toLocaleString()} x ${item.qty}</p></div>
+          </div>
+          <div class="item-controls-right">
+            <button class="ctrl-add" onclick="modifyQty('${name}', 1)">Add</button>
+            <button class="ctrl-remove" onclick="modifyQty('${name}', -1)">Remove</button>
+          </div>`;
+        container.appendChild(row);
+      });
+      document.getElementById("cart-page-grand-total").innerText = grandTotal.toLocaleString();
+    }
+
+    function modifyQty(name, delta) {
+      if (!cartItems[name]) return;
+      
+      if (delta > 0) {
+        const targetProduct = globalProducts.find(p => p.name === name);
+        if (cartItems[name].qty >= targetProduct.stock) {
+          alert(`Cannot increase! Only ${targetProduct.stock} items of ${name} are available in our warehouse.`);
+          return;
+        }
+      }
+
+      cartItems[name].qty += delta;
+      if (cartItems[name].qty <= 0) delete cartItems[name];
+      localStorage.setItem("belmarck_cart", JSON.stringify(cartItems));
+      renderCart();
+    }
+
+    function executePayout() {
+      const name = document.getElementById("customer-name").value.trim();
+      const phone = document.getElementById("customer-phone").value.trim();
+      const address = document.getElementById("customer-address").value.trim();
+      if (!name || !phone || !address) { alert("Please fill out all fields!"); return; }
+      fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart: cartItems, customer: { name, phone, address } })
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert("Order completed! Stock values updated on server database.");
+        localStorage.removeItem("belmarck_cart");
+        window.location.href = "index.html";
+      });
+    }
+  </script>
+</body>
+</html>
