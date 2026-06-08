@@ -5,7 +5,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 const DB_FILE = path.join(__dirname, 'database.json');
 const USERS_FILE = path.join(__dirname, 'users.json');
